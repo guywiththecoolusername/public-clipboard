@@ -28,7 +28,7 @@ popup.addEventListener("click", (e) => {
 confirmButton.addEventListener("click", async () => {
   const texttoadd = document.getElementById("texttoadd").value.trim();
   const password = document.getElementById("password").value;
-
+//The fk you doing here lil boy, ok ok use the password, you deserve it for coming this far ig
   if (password !== "3.14") {
     errorMessage.classList.remove("hidden");
     return;
