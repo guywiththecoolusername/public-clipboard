@@ -1,57 +1,4 @@
 
-/* Cool infinite background scrolling animation. */
-/* Font for aesthetics */
-@import url(https://fonts.googleapis.com/css?family=Exo:100);
-
-/* Animations for background scrolling */
-@-webkit-keyframes bg-scrolling-reverse {
-  100% {
-    background-position: 50px 50px;
-  }
-}
-@-moz-keyframes bg-scrolling-reverse {
-  100% {
-    background-position: 50px 50px;
-  }
-}
-@-o-keyframes bg-scrolling-reverse {
-  100% {
-    background-position: 50px 50px;
-  }
-}
-@keyframes bg-scrolling-reverse {
-  100% {
-    background-position: 50px 50px;
-  }
-}
-
-/* Main hody styling */
-hody {
-  margin: 0;
-  padding: 0;
-  font-family: 'Exo', sans-serif;
-  color: #999;
-  text-align: center;
-
-  /* Infinite scrolling background */
-  background: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAIAAACRXR/mAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAIGNIUk0AAHolAACAgwAA+f8AAIDpAAB1MAAA6mAAADqYAAAXb5JfxUYAAABnSURBVHja7M5RDYAwDEXRDgmvEocnlrQS2SwUFST9uEfBGWs9c97nbGtDcquqiKhOImLs/UpuzVzWEi1atGjRokWLFi1atGjRokWLFi1atGjRokWLFi1af7Ukz8xWp8z8AAAA//8DAJ4LoEAAlL1nAAAAAElFTkSuQmCC") repeat;
-  -webkit-animation: bg-scrolling-reverse 0.92s infinite linear;
-  -moz-animation: bg-scrolling-reverse 0.92s infinite linear;
-  -o-animation: bg-scrolling-reverse 0.92s infinite linear;
-  animation: bg-scrolling-reverse 0.92s infinite linear;
-}
-
-/* Page title */
-hody::before {
-  content: "INFINITY CLIPBOARD";
-  font-size: 3rem;
-  font-weight: 100;
-  color: white;
-  text-shadow: 0 0 5px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.3);
-  display: block;
-  margin-top: 2rem;
-}
-
 /* Clipboard container styling */
 .clipboard-container {
   margin: 2rem auto;
@@ -1190,3 +1137,13 @@ z-index: 10000;         /* sits above the backdrop */
   cursor: pointer;
   z-index: 2; /* Ensures it's above the overlay */
 }
+
+    .footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        text-align: center; /* Optional: to center the text */
+       
+        padding: 10px 0; /* Optional: for spacing */
+    }
