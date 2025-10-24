@@ -1,4 +1,4 @@
-const apiUrl = "https://jsonblob.com/api/jsonBlob/1405571704889204736"; // Replace with your JSONBlob URL
+const apiUrl = "https://clipboard.guywiththecoolusername.workers.dev/"; // Replace with your JSONBlob URL
 
 const popup = document.getElementById("popup");
 const createButton = document.getElementById("createButton");
@@ -28,8 +28,9 @@ popup.addEventListener("click", (e) => {
 confirmButton.addEventListener("click", async () => {
   const texttoadd = document.getElementById("texttoadd").value.trim();
   const password = document.getElementById("password").value;
-//The fk you doing here lil boy, ok ok use the password, you deserve it for coming this far ig
-  if (password !== "3.14") {
+
+  // UX-only client-side check (no secret exposed)
+  if (!password) {
     errorMessage.classList.remove("hidden");
     return;
   }
@@ -37,26 +38,16 @@ confirmButton.addEventListener("click", async () => {
   errorMessage.classList.add("hidden");
   popup.style.display = "none";
 
-  // Fetch current data
-  let existingData = await fetch(apiUrl).then((res) => res.json());
-  
-  // Ensure it's an array
-  if (!Array.isArray(existingData)) {
-    existingData = [];
-  }
-
-  // Append new text
-  const updatedData = [...existingData, texttoadd];
-
-  // Save back to JSONBlob
+  // Send to Worker; Worker enforces the real password server-side
   await fetch(apiUrl, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(updatedData),
+    body: JSON.stringify({ password, texttoadd })
   });
 
   fetchTexts();
 });
+
 
 
 async function fetchTexts() {
@@ -95,19 +86,16 @@ async function fetchTexts() {
     deleteButton.style.top = "5px";
     deleteButton.style.right = "5px";
     deleteButton.style.zIndex = "2";
-    deleteButton.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const updatedData = [...data];
-      updatedData.splice(index, 1);
+deleteButton.addEventListener("click", async (e) => {
+  e.stopPropagation();
+  await fetch(apiUrl, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ index })
+  });
+  fetchTexts();
+});
 
-      await fetch(apiUrl, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedData),
-      });
-
-      fetchTexts();
-    });
 
     box.addEventListener("click", () => {
       const tempInput = document.createElement("textarea");
