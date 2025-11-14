@@ -1042,7 +1042,14 @@ z-index: 10000;         /* sits above the backdrop */
   color: #fff;
   font-style: italic;
 }
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;     /* Firefox */
+}
 
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;             /* Safari and Chrome */
+}
 
 
 /* CSS */
