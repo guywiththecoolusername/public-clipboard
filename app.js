@@ -18,6 +18,10 @@ togglePassword.addEventListener("click", () => {
   togglePassword.className = isPassword ? "fa fa-eye-slash" : "fa fa-eye";
 });
 
+passwordInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") confirmButton.click();
+});
+
 createButton.addEventListener("click", () => popup.style.display = "flex");
 closePopup.addEventListener("click", () => popup.style.display = "none");
 
