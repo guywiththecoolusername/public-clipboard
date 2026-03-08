@@ -380,3 +380,129 @@ header {
     font-size: 13px;
   }
 }
+
+/* ─── Expand Modal ───────────────────────────────────────────────── */
+#expandBackdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 99998;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+#expandBackdrop.active {
+  display: block;
+}
+
+#expandModal {
+  position: fixed;
+  background: #111;
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.7);
+  display: flex;
+  flex-direction: column;
+  z-index: 99999;
+  overflow: hidden;
+  /* position/size set by JS for morph */
+}
+
+#expandClose {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #e74c3c;
+  background: transparent;
+  color: #e74c3c;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: background 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
+}
+#expandClose:hover {
+  background: #e74c3c;
+  color: #fff;
+}
+
+#expandText {
+  flex: 1;
+  overflow: auto;
+  padding: 20px 20px 10px 20px;
+  margin-top: 10px;
+  color: #ffffff;
+  font-family: 'Courier New', monospace;
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre;
+  word-break: normal;
+  user-select: text;
+  -webkit-user-select: text;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+#expandText::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+#expandText::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 3px;
+}
+
+#expandActions {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+#expandCopy {
+  flex: 1;
+  height: 42px;
+  border-radius: 8px;
+  border: 2px solid rgba(255,255,255,0.5);
+  background: transparent;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+#expandCopy:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: #fff;
+}
+
+#expandDelete {
+  flex: 1;
+  height: 42px;
+  border-radius: 8px;
+  border: 2px solid #e74c3c;
+  background: transparent;
+  color: #e74c3c;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+#expandDelete:hover {
+  background: #e74c3c;
+  color: #fff;
+}
+
+@media (max-width: 480px) {
+  #expandText {
+    font-size: 13px;
+    padding: 14px 14px 8px;
+  }
+  #expandActions {
+    padding: 10px 14px;
+  }
+}
