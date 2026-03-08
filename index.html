@@ -8,8 +8,6 @@
   <link rel="stylesheet" href="./star-animation.css">
   <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-  <script src="https://louisabraham.github.io/nekojs/neko.js" data-autostart></script>
-
   <style>
 		textcolor: "white";
   </style>
@@ -47,16 +45,30 @@
      <input id="password" class="input" type="password" placeholder=" " />
      <div class="cut cut-short"></div>
      <label for="password" class="placeholder">Password</label>
+     <i id="togglePassword" class="fa fa-eye"
+        style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#aaa;"></i>
+    </div>
 
-  <!-- Eye icon toggle -->
-  <i id="togglePassword" class="fa fa-eye" 
-     style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #aaa;"></i>
-</div>
+    <!-- Secret toggle -->
+    <div id="secretToggleRow">
+      <label id="secretLabel">
+        <input type="checkbox" id="secretCheckbox" />
+        <span>🔒 Secret message</span>
+      </label>
+    </div>
 
-    
+    <!-- Secret key field (hidden until checkbox ticked) -->
+    <div class="input-container ic2" id="secretKeyContainer" style="display:none; position:relative;">
+      <input id="secretKey" class="input" type="password" placeholder=" " />
+      <div class="cut" style="width:88px;"></div>
+      <label for="secretKey" class="placeholder">Encryption key</label>
+      <i id="toggleSecretKey" class="fa fa-eye"
+         style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#aaa;"></i>
+    </div>
+
     <button type="submit" id="confirmButton" role=button class="submit">Submit</button>
     <button id="closePopup" class="hidden">Close</button>
-    
+
     <div id="errorMessage" class="hidden">Incorrect password</div>
   </div>
 </div>

@@ -404,7 +404,6 @@ header {
   flex-direction: column;
   z-index: 99999;
   overflow: hidden;
-  /* position/size set by JS for morph */
 }
 
 #expandClose {
@@ -505,4 +504,120 @@ header {
   #expandActions {
     padding: 10px 14px;
   }
+}
+
+/* ─── Secret checkbox row ────────────────────────────────────────── */
+#secretToggleRow {
+  display: flex;
+  align-items: center;
+  margin-top: 16px;
+}
+#secretLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #bbb;
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+}
+#secretLabel input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #dc2f55;
+  cursor: pointer;
+}
+#secretLabel:hover { color: #fff; }
+
+/* ─── Locked text box ────────────────────────────────────────────── */
+.textBox--locked {
+  background: rgba(220, 47, 85, 0.06) !important;
+  border-color: rgba(220, 47, 85, 0.35) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  min-height: 64px;
+  justify-content: center;
+  cursor: pointer;
+}
+.textBox--locked:hover {
+  background: rgba(220, 47, 85, 0.12) !important;
+  border-color: rgba(220, 47, 85, 0.6) !important;
+}
+.lockOverlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.lockIcon {
+  font-size: 26px;
+  filter: drop-shadow(0 0 6px rgba(220, 47, 85, 0.7));
+}
+.lockHint {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.5px;
+}
+
+/* ─── Decrypt key prompt ─────────────────────────────────────────── */
+#decryptBackdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 99999;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+#decryptBackdrop.active {
+  display: flex;
+}
+#decryptBox {
+  background: #1a1a2e;
+  border: 1px solid rgba(220, 47, 85, 0.4);
+  border-radius: 16px;
+  padding: 28px 24px 24px;
+  width: min(360px, 88vw);
+  box-sizing: border-box;
+  box-shadow: 0 0 40px rgba(220, 47, 85, 0.15);
+  animation: decryptPop 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes decryptPop {
+  from { transform: scale(0.92); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+.decrypt-title {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+}
+.decrypt-btn {
+  flex: 1;
+  height: 40px;
+  border-radius: 8px;
+  font-size: 15px;
+  cursor: pointer;
+  border: 2px solid;
+  background: transparent;
+  transition: background 0.2s, color 0.2s;
+}
+.decrypt-btn.cancel {
+  border-color: rgba(255,255,255,0.3);
+  color: #aaa;
+}
+.decrypt-btn.cancel:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+}
+.decrypt-btn.confirm {
+  border-color: #dc2f55;
+  color: #dc2f55;
+}
+.decrypt-btn.confirm:hover {
+  background: #dc2f55;
+  color: #fff;
 }
