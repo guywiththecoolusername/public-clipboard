@@ -63,13 +63,14 @@ const errorMessage   = document.getElementById("errorMessage");
 const passwordInput  = document.getElementById("password");
 const togglePassword = document.getElementById("togglePassword");
 const secretCheckbox      = document.getElementById("secretCheckbox");
-const secretKeyContainer  = document.getElementById("secretKeyContainer");
+
 const secretKeyInput      = document.getElementById("secretKey");
 const toggleSecretKey     = document.getElementById("toggleSecretKey");
 
-// ── Secret checkbox toggle ────────────────────────────────────────
+// ── Secret checkbox — enable/disable the field ───────────────────
 secretCheckbox.addEventListener("change", () => {
-  secretKeyContainer.style.display = secretCheckbox.checked ? "block" : "none";
+  secretKeyInput.disabled = !secretCheckbox.checked;
+  if (!secretCheckbox.checked) secretKeyInput.value = "";
 });
 
 // ── Eye toggles ───────────────────────────────────────────────────
@@ -94,9 +95,8 @@ secretKeyInput.addEventListener("keydown", (e) => {
 // ── Create popup open/close ───────────────────────────────────────
 createButton.addEventListener("click", () => {
   popup.style.display = "flex";
-  // reset secret state
   secretCheckbox.checked = false;
-  secretKeyContainer.style.display = "none";
+  secretKeyInput.disabled = true;
   secretKeyInput.value = "";
 });
 closePopup.addEventListener("click",  () => popup.style.display = "none");
@@ -252,7 +252,7 @@ async function tryDecrypt(b64, action) {
 function openExpand(text, index, originBox, isDecrypted = false) {
   expandText.textContent = text;
   expandDelete.dataset.index = index;
-  expandDelete.style.display = (index !== null) ? "flex" : "none";
+
 
   const targetW = Math.min(800, window.innerWidth * 0.85);
   const targetH = window.innerHeight * 0.75;

@@ -190,12 +190,12 @@ header {
   background-color: #222;
   border-radius: 20px;
   box-sizing: border-box;
-  height: 450px;
-  padding: 20px;
-  width: 450px;
+  height: auto;
+  padding: 40px 48px 40px;
+  width: 480px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 16px;
   color: #eee;
   z-index: 10000;
 }
@@ -220,8 +220,21 @@ header {
   position: relative;
   width: 100%;
 }
-.ic1 { margin-top: 40px; }
-.ic2 { margin-top: 30px; }
+.ic1 { margin-top: 10px; }
+.ic2 { margin-top: 5px; }
+
+/* Tall textarea container */
+.ic-tall {
+  height: 160px;
+}
+.input-textarea {
+  resize: none;
+  height: 100%;
+  padding-top: 18px;
+  line-height: 1.6;
+  font-family: 'Courier New', monospace;
+  font-size: 15px;
+}
 
 .input {
   background-color: #333;
@@ -359,10 +372,11 @@ header {
     margin-top: 80px;
   }
   .form {
-    width: 90%;
-    max-width: 450px;
+    width: 92%;
+    max-width: 600px;
     height: auto;
-    min-height: 450px;
+    padding: 28px 24px;
+    gap: 12px;
   }
   .header-title {
     font-size: 18px;
@@ -506,28 +520,7 @@ header {
   }
 }
 
-/* ─── Secret checkbox row ────────────────────────────────────────── */
-#secretToggleRow {
-  display: flex;
-  align-items: center;
-  margin-top: 16px;
-}
-#secretLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #bbb;
-  font-size: 15px;
-  cursor: pointer;
-  user-select: none;
-}
-#secretLabel input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: #dc2f55;
-  cursor: pointer;
-}
-#secretLabel:hover { color: #fff; }
+/* ─── Secret lock/unlock field ───────────────────────────────────── */
 
 /* ─── Locked text box ────────────────────────────────────────────── */
 .textBox--locked {
@@ -580,10 +573,14 @@ header {
   border: 1px solid rgba(220, 47, 85, 0.4);
   border-radius: 16px;
   padding: 28px 24px 24px;
-  width: min(360px, 88vw);
+  width: min(400px, 88vw);
   box-sizing: border-box;
   box-shadow: 0 0 40px rgba(220, 47, 85, 0.15);
   animation: decryptPop 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+#decryptKeyInput {
+  height: 50px !important;
+  font-size: 20px !important;
 }
 @keyframes decryptPop {
   from { transform: scale(0.92); opacity: 0; }
@@ -620,4 +617,92 @@ header {
 .decrypt-btn.confirm:hover {
   background: #dc2f55;
   color: #fff;
+}
+
+/* ─── Secret lock/unlock field ───────────────────────────────────── */
+.secret-field-wrapper {
+  --lock-size: 50px;
+  position: relative;      /* positioning parent for shade spans */
+  display: flex;
+  border-radius: 12px;
+  overflow: visible;
+  height: 50px;
+  background-color: #333;
+}
+
+/* Invisible checkbox — sits over the lock label, captures clicks */
+.secret-cb {
+  position: absolute;
+  opacity: 0;
+  width: var(--lock-size);
+  height: var(--lock-size);
+  cursor: pointer;
+  z-index: 6;
+  margin: 0;
+  padding: 0;
+}
+
+/* Lock label — the visible icon button */
+.secret-lock-btn {
+  width: var(--lock-size);
+  height: var(--lock-size);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  transition: background 0.2s;
+}
+.secret-lock-btn:hover { background: rgba(255,255,255,0.06); }
+
+/* Lock / unlock icons */
+.secret-icon-lock {
+  color: #dc2f55;
+  font-size: 16px;
+  position: absolute;
+  transition: opacity 0.2s, transform 0.25s;
+}
+.secret-icon-unlock {
+  color: #4caf50;
+  font-size: 16px;
+  position: absolute;
+  opacity: 0;
+  transform: rotate(-20deg);
+  transition: opacity 0.2s, transform 0.25s;
+}
+.secret-cb:checked ~ .secret-lock-btn .secret-icon-lock   { opacity: 0; transform: rotate(20deg); }
+.secret-cb:checked ~ .secret-lock-btn .secret-icon-unlock { opacity: 1; transform: rotate(0deg);  }
+
+/* Single shade — fades out when unlocked */
+.secret-shade {
+  position: absolute;
+  left: var(--lock-size);
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 4;
+  pointer-events: all;
+  cursor: not-allowed;
+  border-radius: 0 12px 12px 0;
+  transition: opacity 0.22s ease;
+}
+.secret-cb:checked ~ .secret-shade { opacity: 0; pointer-events: none; }
+
+/* Input area */
+.secret-input-inner {
+  flex: 1;
+  position: relative;
+  height: 100%;
+}
+.secret-input-inner .input {
+  border-radius: 0 12px 12px 0;
+  height: 100%;
+}
+.secret-input-inner .input:disabled {
+  cursor: not-allowed;
+  color: #777;
 }
