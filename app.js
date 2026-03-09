@@ -222,7 +222,7 @@ decryptBackdrop.addEventListener("click", (e) => { if (e.target === decryptBackd
 decryptKeyInput.addEventListener("keydown", (e) => { if (e.key === "Enter") decryptConfirm.click(); });
 decryptConfirm.addEventListener("click", () => closeDecryptPrompt(decryptKeyInput.value));
 
-async function tryDecrypt(b64, action) {
+async function tryDecrypt(b64, action, index) {
   // action = "copy" | "expand"
   while (true) {
     const key = await promptDecryptKey();
@@ -242,7 +242,7 @@ async function tryDecrypt(b64, action) {
         document.body.removeChild(t);
       });
     } else {
-      openExpand(plain, null, null, true);
+      openExpand(plain, index, null, true);
     }
     return;
   }
@@ -396,11 +396,11 @@ async function fetchTexts() {
 
     if (isSecret) {
       // Left click → decrypt & copy
-      box.addEventListener("click", () => tryDecrypt(b64, "copy"));
+      box.addEventListener("click", () => tryDecrypt(b64, "copy", index));
       // Right click → decrypt & expand
       box.addEventListener("contextmenu", (e) => {
         e.preventDefault();
-        tryDecrypt(b64, "expand");
+        tryDecrypt(b64, "expand", index);
       });
     }
 
@@ -409,7 +409,7 @@ async function fetchTexts() {
     box.addEventListener("touchstart", (e) => {
       pressTimer = setTimeout(() => {
         e.preventDefault();
-        if (isSecret) tryDecrypt(b64, "expand");
+        if (isSecret) tryDecrypt(b64, "expand", index);
         else openExpand(displayText, index, box);
       }, 500);
     }, { passive: false });
