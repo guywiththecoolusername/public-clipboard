@@ -1,0 +1,9 @@
+To fix:
+Whole Create button reimagined with it being one of the boxes with a + sign in middle
+Arrange boxes in order: recent on top to old on bottom hence draft naturally comes to the top
+Copy link to point to download link
+
+Also heavy error testing
+
+Morph draft into clip maybe by starting to crop from below getting it above making sure the text itself doesnt move relative to the screen
+
