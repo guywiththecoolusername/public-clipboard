@@ -4,13 +4,13 @@ const FILE_PREFIX   = 'FILE_ENTRY=';
 
 // ── WebCrypto: TEXT ───────────────────────────────────────────────
 
-async function deriveKey(password, salt) {
+async function deriveKey(password, salt, iterations = 200000) {
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]
   );
   return crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt, iterations: 200000, hash: "SHA-256" },
+    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
     keyMaterial,
     { name: "AES-GCM", length: 256 },
     false,
@@ -41,7 +41,11 @@ async function decryptText(b64, password) {
   } catch { return null; }
 }
 
-// ── WebCrypto: FILE ───────────────────────────────────────────────
+// ── WebCrypto: FILE (legacy, whole-buffer format) ───────────────────
+// New uploads use the chunked streaming pipeline in crypto-stream.js.
+// These four functions are kept only so files uploaded before that
+// change (single IV, single AES-GCM call over the whole file) remain
+// downloadable — see downloadFileLegacy().
 
 async function generateFileKey() {
   const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
@@ -87,20 +91,6 @@ async function decryptFilePassword(buffer, password) {
   } catch { return null; }
 }
 
-// ── Archive detection ─────────────────────────────────────────────
-
-async function detectArchiveProtection(file) {
-  try {
-    const reader  = new zip.ZipReader(new zip.BlobReader(file));
-    const entries = await reader.getEntries();
-    await reader.close();
-    if (!entries.length) return { isArchive: true, format: "ZIP", isProtected: false };
-    return { isArchive: true, format: "ZIP", isProtected: entries.some(e => e.encrypted) };
-  } catch {
-    return { isArchive: false, format: null, isProtected: false };
-  }
-}
-
 // ── Helpers ───────────────────────────────────────────────────────
 
 function formatBytes(bytes) {
@@ -140,7 +130,7 @@ const textContainer = document.getElementById("textContainer");
 // ── Draft clip state ──────────────────────────────────────────────
 
 let draftMode    = null;   // 'text' | 'file'
-let draftFile    = null;   // { file, encrypted, autoKey }
+let draftFile    = null;   // { file }  — every file is now encrypted via the chunked pipeline
 let draftEncOn   = false;
 let draftDragCnt = 0;
 let holdTimer    = null;
@@ -177,7 +167,7 @@ function buildDraftClip() {
           <div class="draft-fdt-plus" id="draftFdtPlus">+</div>
           <div class="draft-fdt-text" id="draftFdtText">
             <div class="draft-fdt-label">click to select · or drop anywhere on this clip</div>
-            <div class="draft-fdt-hint">under 100 MB: auto-encrypted · over 100 MB: must be a password-protected ZIP</div>
+            <div class="draft-fdt-hint">any file size · auto-encrypted, streamed in chunks</div>
           </div>
           <div class="draft-chip" id="draftChip">
             <span class="draft-chip-icon" id="draftChipIcon">📄</span>
@@ -448,26 +438,19 @@ async function draftAttachFile(file) {
     return;
   }
 
-  const MB100 = 100 * 1024 * 1024;
+  // Optional app-level cap on upload size — a plain policy choice, not
+  // an encryption limitation (the chunked pipeline itself has no size
+  // ceiling). Set to a byte count to enforce one, or leave as null.
+  const MAX_UPLOAD_BYTES = null;
 
-  if (file.size > MB100) {
-    const result = await detectArchiveProtection(file);
-    if (result.format !== "ZIP") {
-      document.getElementById("draftFdtText").querySelector(".draft-fdt-label").textContent =
-        "❌ Files over 100 MB must be a password-protected ZIP";
-      document.getElementById("draftFdtText").querySelector(".draft-fdt-hint").textContent =
-        "Use WinRAR, 7-Zip, or similar to create an encrypted ZIP first";
-      return;
-    }
-    if (!result.isProtected) {
-      document.getElementById("draftFdtText").querySelector(".draft-fdt-label").textContent =
-        "❌ This ZIP is not password-protected — please encrypt it first";
-      return;
-    }
-    draftFile = { file, encrypted: false, autoKey: null };
-  } else {
-    draftFile = { file, encrypted: true, autoKey: null };
+  if (MAX_UPLOAD_BYTES && file.size > MAX_UPLOAD_BYTES) {
+    fdt.classList.add("has-error");
+    document.getElementById("draftFdtText").querySelector(".draft-fdt-label").textContent =
+      `❌ Files over ${formatBytes(MAX_UPLOAD_BYTES)} aren't allowed`;
+    return;
   }
+
+  draftFile = { file };
 
   // Show chip
   const chip = document.getElementById("draftChip");
@@ -492,7 +475,7 @@ function draftClearFile() {
   document.getElementById("draftFdtText").querySelector(".draft-fdt-label").textContent =
     "click to select · or drop anywhere on this clip";
   document.getElementById("draftFdtText").querySelector(".draft-fdt-hint").textContent =
-    "under 100 MB: auto-encrypted · over 100 MB: must be a password-protected ZIP";
+    "any file size · auto-encrypted, streamed in chunks";
 }
 
 // ── Draft: morph animation ────────────────────────────────────────
@@ -628,69 +611,92 @@ async function submitDraftText(password) {
 async function submitDraftFile(password) {
   if (!draftFile) throw new Error("No file selected");
 
-  const { file, encrypted } = draftFile;
-  const encInput    = document.getElementById("draftEncInput");
-  const useCustomKey = draftEncOn && encInput.value;
+  const { file }      = draftFile;
+  const encInput       = document.getElementById("draftEncInput");
+  const useCustomKey   = draftEncOn && encInput.value;
 
-  let fileBuffer = await file.arrayBuffer();
-  let autoKey    = null;
-
-  if (encrypted) {
-    draftSetProgress(15, "Encrypting…");
-    if (useCustomKey) {
-      fileBuffer = await encryptFilePassword(fileBuffer, encInput.value);
-    } else {
-      autoKey    = await generateFileKey();
-      fileBuffer = await encryptFileAuto(fileBuffer, autoKey);
-    }
-  }
-
-  draftSetProgress(35, "Authorising…");
+  // ── 1. Authorise, and set up a way to re-authorise mid-upload ──────
+  draftSetProgress(3, "Authorising…");
   const tokenRes  = await fetch(apiUrl + "token?password=" + encodeURIComponent(password));
   const tokenData = await tokenRes.json();
   if (!tokenData.accessToken) throw new Error(tokenData.error || "Auth failed — wrong password?");
 
-  draftSetProgress(55, "Uploading…");
-  const storedName = encrypted ? file.name + ".enc" : file.name;
-  const storedMime = encrypted ? "application/octet-stream" : (file.type || "application/octet-stream");
-  const boundary   = "browser_upload_boundary";
-  const enc        = new TextEncoder();
-  const metaPart   = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: storedName })}\r\n`;
-  const filePart   = `--${boundary}\r\nContent-Type: ${storedMime}\r\n\r\n`;
-  const endPart    = `\r\n--${boundary}--`;
-  const body = new Uint8Array([
-    ...enc.encode(metaPart),
-    ...enc.encode(filePart),
-    ...new Uint8Array(fileBuffer),
-    ...enc.encode(endPart),
-  ]);
+  async function refreshAccessToken() {
+    const r = await fetch(apiUrl + "token?password=" + encodeURIComponent(password));
+    const d = await r.json();
+    if (!d.accessToken) throw new Error(d.error || "Re-authorisation failed mid-upload");
+    return d.accessToken;
+  }
 
-  const uploadRes = await fetch(
-    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-    {
-      method:  "POST",
-      headers: {
-        "Authorization": `Bearer ${tokenData.accessToken}`,
-        "Content-Type":  `multipart/related; boundary=${boundary}`,
-      },
-      body,
-    }
-  );
-  const uploadData = await uploadRes.json();
-  if (!uploadData.id) throw new Error("Drive upload failed: " + JSON.stringify(uploadData));
+  // ── 2. Build this file's encryption header (key material never
+  //       leaves this function unencrypted; only autoKey — a fresh
+  //       random key — is later stored server-side, exactly as before) ──
+  let autoKey = null;
+  let key;
+  const noncePrefix = crypto.getRandomValues(new Uint8Array(4));
+  const iterations  = 200000;
+  let passwordMode  = false;
+  let salt          = null;
 
-  draftSetProgress(85, "Saving…");
+  if (useCustomKey) {
+    passwordMode = true;
+    salt = crypto.getRandomValues(new Uint8Array(16));
+    key  = await deriveKey(encInput.value, salt, iterations);
+  } else {
+    autoKey = await generateFileKey();
+    key     = await importRawKey(autoKey);
+  }
+
+  const header = {
+    chunkSize:    CFEC_CHUNK_SIZE,
+    originalSize: file.size,
+    noncePrefix,
+    passwordMode,
+    iterations:   passwordMode ? iterations : 0,
+    salt,
+  };
+  const totalCipherSize = cfecComputeCiphertextSize(file.size, header.chunkSize, passwordMode ? salt.length : 0);
+
+  // Opaque storage name — Drive never sees the real filename or
+  // extension for an encrypted file; the real name lives only in our
+  // own metadata (registered below).
+  const storedName = crypto.randomUUID() + ".bin";
+
+  // ── 3. Stream: read file in fixed windows -> encrypt per-chunk ->
+  //       resumable chunked upload to Drive. Never buffers the whole
+  //       file; a failed window is retried in place, and only a dead
+  //       session forces a full restart (see crypto-stream.js). ──────
+  draftSetProgress(8, "Uploading…");
+  const driveFile = await cfecResumableUploadToDrive({
+    accessToken:  tokenData.accessToken,
+    refreshAccessToken,
+    storedName,
+    mimeType:     "application/octet-stream",
+    totalSize:    totalCipherSize,
+    makeSourceStream: () => cfecBuildCiphertextStream({ file, key, header }),
+    onProgress: (sent, total) => {
+      const pct = 8 + Math.round((sent / total) * 82); // 8%..90%
+      draftSetProgress(Math.min(pct, 90), `Uploading… ${formatBytes(sent)} / ${formatBytes(total)}`);
+    },
+  });
+  if (!driveFile?.id) throw new Error("Drive upload did not return a file id");
+
+  // ── 4. Register metadata (unchanged shape, plus formatVersion so
+  //       downloads know to use the chunked decrypt path) ────────────
+  draftSetProgress(92, "Saving…");
   const regRes = await fetch(apiUrl + "register-file", {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       password,
-      driveId:  uploadData.id,
+      driveId:  driveFile.id,
       name:     file.name,
       size:     file.size,
       mimeType: file.type || "application/octet-stream",
-      encrypted,
+      encrypted: true,
       autoKey,
+      formatVersion: 1,
+      chunkSize: header.chunkSize,
     }),
   });
   const regData = await regRes.json();
@@ -699,8 +705,105 @@ async function submitDraftFile(password) {
 }
 
 // ── File download ─────────────────────────────────────────────────
+//
+// New (formatVersion 1) files: the response body is streamed straight
+// through the Worker (see worker.js) and decrypted chunk-by-chunk as
+// bytes arrive — never buffered whole in memory. When the File System
+// Access API is available, decrypted bytes are written straight to
+// disk as they're produced; otherwise we fall back to assembling a
+// Blob (the only portable way to trigger a save in browsers that lack
+// that API), which is a memory trade-off worth calling out.
+//
+// Files uploaded before this change (no meta.formatVersion) still use
+// the old whole-buffer path in downloadFileLegacy().
+
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement("a");
+  a.href    = url;
+  a.download = filename;           // must be in DOM for Firefox / some Chromium builds
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
 
 async function downloadFile(meta) {
+  if (!meta.formatVersion) return downloadFileLegacy(meta);
+
+  const getKey = async (header) => {
+    if (meta.autoKey) return importRawKey(meta.autoKey);
+    // Password-protected: prompt using the KDF params stored in the
+    // file's own header. A wrong password isn't detectable until the
+    // first chunk fails to authenticate (below), so we surface that
+    // as an inline "wrong key" error and let the user try again.
+    const pw = await promptDecryptKey();
+    if (pw === null) return null;
+    return deriveKey(pw, header.salt, header.iterations || 200000);
+  };
+
+  const useFsa = typeof window.showSaveFilePicker === "function";
+  let fileHandle = null;
+  if (useFsa) {
+    try {
+      fileHandle = await window.showSaveFilePicker({ suggestedName: meta.name });
+    } catch (err) {
+      if (err.name === "AbortError") return; // user cancelled the save dialog
+      fileHandle = null; // fall back to blob download below
+    }
+  }
+
+  let lastErr = null;
+  for (let attempt = 1; attempt <= CFEC_MAX_DL_RETRY; attempt++) {
+    let writable = null;
+    try {
+      const res = await fetch(apiUrl + "file?id=" + meta.driveId);
+      if (!res.ok || !res.body) throw new Error("Download failed (HTTP " + (res.status || "?") + ")");
+
+      const decrypted = res.body.pipeThrough(cfecCreateDecryptTransform({ getKey }));
+
+      if (fileHandle) {
+        writable = await fileHandle.createWritable();
+        await decrypted.pipeTo(writable);
+      } else {
+        const blob = await new Response(decrypted).blob();
+        triggerBlobDownload(blob, meta.name);
+      }
+      return; // success
+
+    } catch (err) {
+      // Discard any partially-written bytes before the next attempt —
+      // abort() drops uncommitted writes rather than leaving a
+      // half-decrypted file behind or blocking a fresh createWritable().
+      if (writable) { try { await writable.abort(); } catch (_) {} }
+
+      if (err.message === "CFEC_CANCELLED") return; // user dismissed the password prompt — not a failure
+
+      if (err.message && err.message.includes("failed authentication") && !meta.autoKey) {
+        // Wrong password on a password-protected file — show the
+        // existing inline error and let the user retry immediately
+        // rather than burning through the retry budget.
+        decryptBackdrop.classList.add("active");
+        decryptError.style.display = "block";
+        attempt--; // doesn't count against the retry budget
+        continue;
+      }
+
+      lastErr = err;
+      if (attempt === CFEC_MAX_DL_RETRY) break;
+      console.warn(`Download attempt ${attempt} failed, retrying:`, err);
+      await new Promise(r => setTimeout(r, 800 * attempt));
+    }
+  }
+
+  alert("Download failed: " + (lastErr?.message || "unknown error") + "\nPlease try again.");
+}
+
+// Legacy whole-buffer path, for files registered before the chunked
+// streaming pipeline (no meta.formatVersion). Kept only for backward
+// compatibility — new uploads never produce this shape.
+async function downloadFileLegacy(meta) {
   const res    = await fetch(apiUrl + "file?id=" + meta.driveId);
   const buffer = await res.arrayBuffer();
 
@@ -727,15 +830,7 @@ async function downloadFile(meta) {
   }
 
   const blob = new Blob([finalBuffer], { type: meta.mimeType || "application/octet-stream" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href     = url;
-  a.download = meta.name;          // must be in DOM for Firefox / some Chromium builds
-  a.style.display = "none";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  triggerBlobDownload(blob, meta.name);
 }
 
 // ── Deep link handler ─────────────────────────────────────────────

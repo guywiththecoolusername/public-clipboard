@@ -12,7 +12,7 @@ export default {
     if (method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
     // ── Google Drive helpers ──────────────────────────────────────────
-    async function getAccessToken() {
+    async function getAccessToken(retriesLeft = 1) {
       const res = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -23,8 +23,11 @@ export default {
           grant_type:    "refresh_token",
         }),
       });
-      const data = await res.json();
-      if (!data.access_token) throw new Error("Failed to get access token: " + JSON.stringify(data));
+      const data = await res.json().catch(() => ({}));
+      if (!data.access_token) {
+        if (retriesLeft > 0) return getAccessToken(retriesLeft - 1);
+        throw new Error("Failed to get access token: " + JSON.stringify(data));
+      }
       return data.access_token;
     }
 
@@ -48,19 +51,50 @@ export default {
       return new Response(data, { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // ── GET /file?id= — proxy file from Drive ─────────────────────────
+    // ── GET /file?id= — stream file from Drive straight through ───────
+    // The whole point of the chunked-decryption client is that it never
+    // needs the full file in memory; buffering it here first would undo
+    // that. driveRes.body is a ReadableStream — we pass it straight into
+    // the outgoing Response without ever materialising it as bytes.
+    // The client's Range header (used for resuming interrupted
+    // downloads) is forwarded to Drive, and Drive's response headers
+    // that describe the (partial) body are forwarded back.
     if (method === "GET" && url.pathname === "/file") {
       const driveId = url.searchParams.get("id");
       if (!driveId) return new Response("Missing id", { status: 400, headers: corsHeaders });
-      const accessToken = await getAccessToken();
-      const driveRes    = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`,
-        { headers: { "Authorization": `Bearer ${accessToken}` } }
-      );
-      const blob = await driveRes.arrayBuffer();
-      return new Response(blob, {
-        headers: { ...corsHeaders, "Content-Type": driveRes.headers.get("Content-Type") || "application/octet-stream" },
-      });
+
+      try {
+        const accessToken = await getAccessToken();
+        const driveHeaders = { "Authorization": `Bearer ${accessToken}` };
+        const range = request.headers.get("Range");
+        if (range) driveHeaders["Range"] = range;
+
+        const driveRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`,
+          { headers: driveHeaders }
+        );
+
+        if (!driveRes.ok && driveRes.status !== 206) {
+          const errText = await driveRes.text().catch(() => "");
+          return new Response(errText || "Failed to fetch file from Drive", {
+            status: driveRes.status, headers: corsHeaders,
+          });
+        }
+
+        const headers = new Headers(corsHeaders);
+        headers.set("Content-Type", driveRes.headers.get("Content-Type") || "application/octet-stream");
+        headers.set("Accept-Ranges", "bytes");
+        const cl = driveRes.headers.get("Content-Length");
+        if (cl) headers.set("Content-Length", cl);
+        const cr = driveRes.headers.get("Content-Range");
+        if (cr) headers.set("Content-Range", cr);
+
+        return new Response(driveRes.body, { status: driveRes.status, headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // ── PUT / — add text entry ────────────────────────────────────────
@@ -108,7 +142,7 @@ export default {
       try { body = await request.json(); }
       catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: corsHeaders }); }
 
-      const { password, driveId, name, size, mimeType, encrypted, autoKey } = body || {};
+      const { password, driveId, name, size, mimeType, encrypted, autoKey, formatVersion, chunkSize } = body || {};
       if (password !== EDIT_PASSWORD) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -121,8 +155,13 @@ export default {
         await setPublic(driveId, accessToken);
       } catch (_) {}
 
+      // formatVersion/chunkSize are only present for files uploaded via
+      // the chunked streaming pipeline; older entries omit them, and
+      // the client falls back to the legacy whole-buffer decrypt path
+      // when they're absent.
       const entry = "FILE_ENTRY=" + JSON.stringify({
         driveId, name, size, mimeType, encrypted, autoKey: autoKey || null,
+        ...(formatVersion ? { formatVersion, chunkSize } : {}),
       });
       let existing = JSON.parse((await DB.get("texts")) || "[]");
       if (!Array.isArray(existing)) existing = [];
